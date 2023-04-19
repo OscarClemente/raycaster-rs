@@ -1,12 +1,12 @@
 extern crate sdl2;
 
-use std::ops::Add;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use sdl2::video::Window;
+use std::ops::Add;
 
 const MAP_WIDTH: usize = 24;
 const MAP_HEIGHT: usize = 24;
@@ -98,7 +98,7 @@ impl Add<Vec2D> for Vec2D {
     type Output = Vec2D;
 
     fn add(self, rhs: Vec2D) -> Self::Output {
-        Vec2D{
+        Vec2D {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
         }
@@ -111,7 +111,6 @@ impl Vec2D {
     }
 }
 
-
 pub struct Renderer {
     canvas: WindowCanvas,
 }
@@ -122,17 +121,17 @@ impl Renderer {
         Ok(Renderer { canvas })
     }
 
-//    fn draw_dot(&mut self, point: &Point) -> Result<(), String> {
-//        let Point(x, y) = point;
-//        self.canvas.fill_rect(Rect::new(
-//            x * DOT_SIZE_IN_PXS as i32,
-//            y * DOT_SIZE_IN_PXS as i32,
-//            DOT_SIZE_IN_PXS.try_into().unwrap(),
-//            DOT_SIZE_IN_PXS.try_into().unwrap(),
-//        ))?;
-//
-//        Ok(())
-//    }
+    //    fn draw_dot(&mut self, point: &Point) -> Result<(), String> {
+    //        let Point(x, y) = point;
+    //        self.canvas.fill_rect(Rect::new(
+    //            x * DOT_SIZE_IN_PXS as i32,
+    //            y * DOT_SIZE_IN_PXS as i32,
+    //            DOT_SIZE_IN_PXS.try_into().unwrap(),
+    //            DOT_SIZE_IN_PXS.try_into().unwrap(),
+    //        ))?;
+    //
+    //        Ok(())
+    //    }
 
     pub fn draw(&mut self, context: &GameContext) -> Result<(), String> {
         self.draw_background(context);
@@ -148,16 +147,13 @@ impl Renderer {
     }
 }
 
-pub struct GameContext {
-}
+pub struct GameContext {}
 
 impl GameContext {
     pub fn new() -> GameContext {
-        GameContext {
-        }
+        GameContext {}
     }
-    pub fn next_tick(&mut self) {
-    }
+    pub fn next_tick(&mut self) {}
 }
 
 fn main() -> Result<(), String> {
@@ -189,7 +185,68 @@ fn main() -> Result<(), String> {
     renderer.draw(&context)?;
     let mut frame_counter = 0;
 
+    let done = false;
+
+    while !done {
+        for x in 0..(SCREEN_WIDTH - 1) {
+            let mut camera_x: f64 = 2.0 * (x as f64) / (SCREEN_WIDTH as f64) - 1.0;
+            let mut raydir_x: f64 = player_direction.x + plane_position.x * camera_x;
+            let mut raydir_y: f64 = player_direction.y + plane_position.y * camera_x;
+
+            let mut map_x: i32 = player_position.x as i32;
+            let mut map_y: i32 = player_position.y as i32;
+
+            let mut side_dist_x: f64 = 0.0;
+            let mut side_dist_y: f64 = 0.0;
+            let mut perpwalldist: f64 = 0.0;
+
+            let delta_dist_x: f64 = if raydir_x == 0.0 {
+                1e30
+            } else {
+                (1.0 / raydir_x).abs()
+            };
+            let delta_dist_y: f64 = if raydir_y == 0.0 {
+                1e30
+            } else {
+                (1.0 / raydir_y).abs()
+            };
+
+            let mut step_x: i32 = 0;
+            let mut step_y: i32 = 0;
+            let mut hit: i32 = 0;
+            let mut side: i32 = 0;
+
+            if (raydir_x < 0.0) {
+                step_x = -1;
+                side_dist_x = (player_position.x - map_x as f64) * delta_dist_x;
+            } else {
+                step_x = 1;
+                side_dist_x = (map_x as f64 + 1.0 - player_position.x) * delta_dist_x;
+            }
+            if (raydir_y < 0.0) {
+                step_y = -1;
+                side_dist_y = (player_position.y - map_y as f64) * delta_dist_y;
+            } else {
+                step_y = 1;
+                side_dist_y = (map_y as f64 + 1.0 - player_position.y) * delta_dist_y;
+            }
+
+            while hit == 0 {
+                if side_dist_x < side_dist_y {
+                    side_dist_x += delta_dist_x;
+                    map_x += step_x;
+                    side = 0;
+                } else {
+                    side_dist_y += delta_dist_y;
+                    map_y += step_y;
+                    side = 1;
+                }
+                if WORLD_MAP[map_x as usize][map_y as usize] > 0 {
+                    hit = 1;
+                }
+            }
+        }
+    }
 
     Ok(())
 }
-
