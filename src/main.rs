@@ -7,6 +7,7 @@ use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use sdl2::video::Window;
 use std::ops::Add;
+use std::time::Duration;
 
 const MAP_WIDTH: usize = 24;
 const MAP_HEIGHT: usize = 24;
@@ -132,19 +133,33 @@ impl Renderer {
     //
     //        Ok(())
     //    }
+    pub fn draw_vertical_line(
+        &mut self,
+        x: i32,
+        y_top: i32,
+        y_bottom: i32,
+        color: Color,
+    ) -> Result<(), String> {
+        self.canvas.set_draw_color(color);
+        self.canvas
+            .fill_rect(Rect::new(x, y_top, 1, (y_bottom - y_top) as u32))?;
+        println!("{}", y_bottom - y_top);
+
+        Ok(())
+    }
 
     pub fn draw(&mut self, context: &GameContext) -> Result<(), String> {
-        self.draw_background(context);
+        //self.draw_background(context);
         self.canvas.present();
 
         Ok(())
     }
 
-    fn draw_background(&mut self, context: &GameContext) {
+    /*fn draw_background(&mut self, context: &GameContext) {
         let color = Color::RED;
         self.canvas.set_draw_color(color);
         self.canvas.clear();
-    }
+    }*/
 }
 
 pub struct GameContext {}
@@ -198,7 +213,6 @@ fn main() -> Result<(), String> {
 
             let mut side_dist_x: f64 = 0.0;
             let mut side_dist_y: f64 = 0.0;
-            let mut perpwalldist: f64 = 0.0;
 
             let delta_dist_x: f64 = if raydir_x == 0.0 {
                 1e30
@@ -245,7 +259,45 @@ fn main() -> Result<(), String> {
                     hit = 1;
                 }
             }
+            let perpwalldist = if side == 0 {
+                side_dist_x - delta_dist_x
+            } else {
+                side_dist_y - delta_dist_y
+            };
+
+            let line_height = SCREEN_HEIGHT as i32 / perpwalldist as i32;
+            let mut draw_start: i32 = -line_height / 2 + SCREEN_HEIGHT as i32 / 2;
+            if draw_start < 0 {
+                draw_start = 0
+            };
+            let mut draw_end: i32 = line_height / 2 + SCREEN_HEIGHT as i32 / 2;
+            if draw_end >= SCREEN_HEIGHT as i32 {
+                draw_end = SCREEN_HEIGHT as i32 - 1
+            };
+
+            let mut color = match WORLD_MAP[map_x as usize][map_y as usize] {
+                1 => Color::RED,
+                2 => Color::GREEN,
+                3 => Color::BLUE,
+                4 => Color::WHITE,
+                _ => Color::YELLOW,
+            };
+
+            if side == 1 {
+                color = Color {
+                    r: color.r / 2,
+                    g: color.g / 2,
+                    b: color.b / 2,
+                    a: color.a,
+                }
+            };
+            renderer.draw_vertical_line(x as i32, draw_start, draw_end, color)?;
+
+            println!("cycle {} {} {}", x, draw_start, draw_end);
         }
+        println!("presenting");
+        renderer.canvas.present();
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 100));
     }
 
     Ok(())
