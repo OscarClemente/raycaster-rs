@@ -11,8 +11,8 @@ use std::time::Duration;
 
 const MAP_WIDTH: usize = 24;
 const MAP_HEIGHT: usize = 24;
-const SCREEN_WIDTH: usize = 640;
-const SCREEN_HEIGHT: usize = 480;
+const SCREEN_WIDTH: usize = 1280;
+const SCREEN_HEIGHT: usize = 720;
 
 const WORLD_MAP: [&[i32; MAP_WIDTH]; MAP_HEIGHT] = [
     &[
@@ -143,7 +143,6 @@ impl Renderer {
         self.canvas.set_draw_color(color);
         self.canvas
             .fill_rect(Rect::new(x, y_top, 1, (y_bottom - y_top) as u32))?;
-        println!("{}", y_bottom - y_top);
 
         Ok(())
     }
@@ -263,7 +262,7 @@ fn main() -> Result<(), String> {
                 side_dist_y - delta_dist_y
             };
 
-            let line_height = SCREEN_HEIGHT as i32 / perpwalldist as i32;
+            let line_height = (SCREEN_HEIGHT as f64 / perpwalldist) as i32;
             let mut draw_start: i32 = -line_height / 2 + SCREEN_HEIGHT as i32 / 2;
             if draw_start < 0 {
                 draw_start = 0
@@ -290,14 +289,19 @@ fn main() -> Result<(), String> {
                 }
             };
             renderer.draw_vertical_line(x as i32, draw_start, draw_end, color)?;
-
-            println!("cycle {} {} {}", x, draw_start, draw_end);
         }
-        println!("presenting");
+
         renderer.draw()?;
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 100));
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
         renderer.canvas.set_draw_color(Color::BLACK);
         renderer.canvas.clear();
+
+        let frame_time: f64 = 0.016;
+        let move_speed: f64 = frame_time * 5.0;
+        let rotation_speed: f64 = frame_time * 3.0;
+
+        let move_x: f64 = player_direction.x * move_speed;
+        let move_y: f64 = player_direction.y * move_speed;
 
         for event in event_pump.poll_iter() {
             match event {
@@ -307,10 +311,29 @@ fn main() -> Result<(), String> {
                     ..
                 } => match keycode {
                     Keycode::W | Keycode::K => {
-                        player_position.x = player_position.x + 1.0
+                        if WORLD_MAP[(player_position.x + move_x) as usize][player_position.y as usize] == 0 {player_position.x += move_x};
+                        if WORLD_MAP[player_position.x as usize][(player_position.y + move_y) as usize] == 0 {player_position.y += move_y};
                     },
                     Keycode::S | Keycode::J => {
-                        player_position.x = player_position.x - 1.0
+                        if WORLD_MAP[(player_position.x - move_x) as usize][player_position.y as usize] == 0 {player_position.x -= move_x};
+                        if WORLD_MAP[player_position.x as usize][(player_position.y - move_y) as usize] == 0 {player_position.y -= move_y};
+                    },
+                    Keycode::A | Keycode::H => {
+                        let old_dir_x = player_direction.x;
+                        player_direction.x = player_direction.x * rotation_speed.cos() - player_direction.y * rotation_speed.sin();
+                        player_direction.y =old_dir_x * rotation_speed.sin() + player_direction.y * rotation_speed.cos();
+                        let old_plane_x = plane_position.x;
+                        plane_position.x = plane_position.x * rotation_speed.cos() - plane_position.y * rotation_speed.sin();
+                        plane_position.y = old_plane_x * rotation_speed.sin() + plane_position.y * rotation_speed.cos();
+                    },
+                    Keycode::D | Keycode::L => {
+                        let negative_rotation_speed = -rotation_speed;
+                        let old_dir_x = player_direction.x;
+                        player_direction.x = player_direction.x * negative_rotation_speed.cos() - player_direction.y * negative_rotation_speed.sin();
+                        player_direction.y =old_dir_x * negative_rotation_speed.sin() + player_direction.y * negative_rotation_speed.cos();
+                        let old_plane_x = plane_position.x;
+                        plane_position.x = plane_position.x * negative_rotation_speed.cos() - plane_position.y * negative_rotation_speed.sin();
+                        plane_position.y = old_plane_x * negative_rotation_speed.sin() + plane_position.y * negative_rotation_speed.cos();
                     }
                     _ => {}
                 },
