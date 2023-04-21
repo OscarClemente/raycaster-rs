@@ -148,8 +148,7 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn draw(&mut self, context: &GameContext) -> Result<(), String> {
-        //self.draw_background(context);
+    pub fn draw(&mut self) -> Result<(), String> {
         self.canvas.present();
 
         Ok(())
@@ -197,12 +196,11 @@ fn main() -> Result<(), String> {
 
     let mut context = GameContext::new();
     let mut renderer = Renderer::new(window)?;
-    renderer.draw(&context)?;
     let mut frame_counter = 0;
 
     let done = false;
 
-    while !done {
+    'running: loop {
         for x in 0..(SCREEN_WIDTH - 1) {
             let mut camera_x: f64 = 2.0 * (x as f64) / (SCREEN_WIDTH as f64) - 1.0;
             let mut raydir_x: f64 = player_direction.x + plane_position.x * camera_x;
@@ -296,8 +294,29 @@ fn main() -> Result<(), String> {
             println!("cycle {} {} {}", x, draw_start, draw_end);
         }
         println!("presenting");
-        renderer.canvas.present();
+        renderer.draw()?;
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 100));
+        renderer.canvas.set_draw_color(Color::BLACK);
+        renderer.canvas.clear();
+
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. } => break 'running,
+                Event::KeyDown {
+                    keycode: Some(keycode),
+                    ..
+                } => match keycode {
+                    Keycode::W | Keycode::K => {
+                        player_position.x = player_position.x + 1.0
+                    },
+                    Keycode::S | Keycode::J => {
+                        player_position.x = player_position.x - 1.0
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
     }
 
     Ok(())
