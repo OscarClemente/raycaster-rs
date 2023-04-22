@@ -122,17 +122,21 @@ impl Renderer {
         Ok(Renderer { canvas })
     }
 
-    //    fn draw_dot(&mut self, point: &Point) -> Result<(), String> {
-    //        let Point(x, y) = point;
-    //        self.canvas.fill_rect(Rect::new(
-    //            x * DOT_SIZE_IN_PXS as i32,
-    //            y * DOT_SIZE_IN_PXS as i32,
-    //            DOT_SIZE_IN_PXS.try_into().unwrap(),
-    //            DOT_SIZE_IN_PXS.try_into().unwrap(),
-    //        ))?;
-    //
-    //        Ok(())
-    //    }
+    pub fn draw_box(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        color: Color,
+    ) -> Result<(), String> {
+        self.canvas.set_draw_color(color);
+        self.canvas
+            .fill_rect(Rect::new(x, y, width as u32, height as u32))?;
+
+        Ok(())
+    }
+
     pub fn draw_vertical_line(
         &mut self,
         x: i32,
@@ -174,8 +178,8 @@ fn main() -> Result<(), String> {
     let mut player_direction = Vec2D::new(-1.0, 0.0);
     let mut plane_position = Vec2D::new(0.0, 0.66);
 
-    let mut time = 0.0; //time of current frame
-    let mut old_time = 0.0; //time of previous frame
+    let mut _time = 0.0; //time of current frame
+    let mut _old_time = 0.0; //time of previous frame
 
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
@@ -193,23 +197,20 @@ fn main() -> Result<(), String> {
 
     let mut event_pump = sdl_context.event_pump()?;
 
-    let mut context = GameContext::new();
     let mut renderer = Renderer::new(window)?;
-    let mut frame_counter = 0;
 
-    let done = false;
 
     'running: loop {
         for x in 0..(SCREEN_WIDTH - 1) {
-            let mut camera_x: f64 = 2.0 * (x as f64) / (SCREEN_WIDTH as f64) - 1.0;
-            let mut raydir_x: f64 = player_direction.x + plane_position.x * camera_x;
-            let mut raydir_y: f64 = player_direction.y + plane_position.y * camera_x;
+            let camera_x: f64 = 2.0 * (x as f64) / (SCREEN_WIDTH as f64) - 1.0;
+            let raydir_x: f64 = player_direction.x + plane_position.x * camera_x;
+            let raydir_y: f64 = player_direction.y + plane_position.y * camera_x;
 
             let mut map_x: i32 = player_position.x as i32;
             let mut map_y: i32 = player_position.y as i32;
 
-            let mut side_dist_x: f64 = 0.0;
-            let mut side_dist_y: f64 = 0.0;
+            let mut side_dist_x: f64;
+            let mut side_dist_y: f64;
 
             let delta_dist_x: f64 = if raydir_x == 0.0 {
                 1e30
@@ -222,19 +223,19 @@ fn main() -> Result<(), String> {
                 (1.0 / raydir_y).abs()
             };
 
-            let mut step_x: i32 = 0;
-            let mut step_y: i32 = 0;
+            let step_x: i32;
+            let step_y: i32;
             let mut hit: i32 = 0;
             let mut side: i32 = 0;
 
-            if (raydir_x < 0.0) {
+            if raydir_x < 0.0 {
                 step_x = -1;
                 side_dist_x = (player_position.x - map_x as f64) * delta_dist_x;
             } else {
                 step_x = 1;
                 side_dist_x = (map_x as f64 + 1.0 - player_position.x) * delta_dist_x;
             }
-            if (raydir_y < 0.0) {
+            if raydir_y < 0.0 {
                 step_y = -1;
                 side_dist_y = (player_position.y - map_y as f64) * delta_dist_y;
             } else {
@@ -293,8 +294,25 @@ fn main() -> Result<(), String> {
 
         renderer.draw()?;
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
-        renderer.canvas.set_draw_color(Color::BLACK);
+        renderer.canvas.set_draw_color(Color {
+            a: 100,
+            r: 40,
+            g: 40,
+            b: 40,
+        });
         renderer.canvas.clear();
+        renderer.draw_box(
+            0,
+            0,
+            SCREEN_WIDTH as i32,
+            SCREEN_HEIGHT as i32 / 2,
+            Color {
+                a: 100,
+                r: 135,
+                g: 206,
+                b: 235,
+            },
+        )?;
 
         let frame_time: f64 = 0.016;
         let move_speed: f64 = frame_time * 5.0;
@@ -311,29 +329,57 @@ fn main() -> Result<(), String> {
                     ..
                 } => match keycode {
                     Keycode::W | Keycode::K => {
-                        if WORLD_MAP[(player_position.x + move_x) as usize][player_position.y as usize] == 0 {player_position.x += move_x};
-                        if WORLD_MAP[player_position.x as usize][(player_position.y + move_y) as usize] == 0 {player_position.y += move_y};
-                    },
+                        if WORLD_MAP[(player_position.x + move_x) as usize]
+                            [player_position.y as usize]
+                            == 0
+                        {
+                            player_position.x += move_x
+                        };
+                        if WORLD_MAP[player_position.x as usize]
+                            [(player_position.y + move_y) as usize]
+                            == 0
+                        {
+                            player_position.y += move_y
+                        };
+                    }
                     Keycode::S | Keycode::J => {
-                        if WORLD_MAP[(player_position.x - move_x) as usize][player_position.y as usize] == 0 {player_position.x -= move_x};
-                        if WORLD_MAP[player_position.x as usize][(player_position.y - move_y) as usize] == 0 {player_position.y -= move_y};
-                    },
+                        if WORLD_MAP[(player_position.x - move_x) as usize]
+                            [player_position.y as usize]
+                            == 0
+                        {
+                            player_position.x -= move_x
+                        };
+                        if WORLD_MAP[player_position.x as usize]
+                            [(player_position.y - move_y) as usize]
+                            == 0
+                        {
+                            player_position.y -= move_y
+                        };
+                    }
                     Keycode::A | Keycode::H => {
                         let old_dir_x = player_direction.x;
-                        player_direction.x = player_direction.x * rotation_speed.cos() - player_direction.y * rotation_speed.sin();
-                        player_direction.y =old_dir_x * rotation_speed.sin() + player_direction.y * rotation_speed.cos();
+                        player_direction.x = player_direction.x * rotation_speed.cos()
+                            - player_direction.y * rotation_speed.sin();
+                        player_direction.y = old_dir_x * rotation_speed.sin()
+                            + player_direction.y * rotation_speed.cos();
                         let old_plane_x = plane_position.x;
-                        plane_position.x = plane_position.x * rotation_speed.cos() - plane_position.y * rotation_speed.sin();
-                        plane_position.y = old_plane_x * rotation_speed.sin() + plane_position.y * rotation_speed.cos();
-                    },
+                        plane_position.x = plane_position.x * rotation_speed.cos()
+                            - plane_position.y * rotation_speed.sin();
+                        plane_position.y = old_plane_x * rotation_speed.sin()
+                            + plane_position.y * rotation_speed.cos();
+                    }
                     Keycode::D | Keycode::L => {
                         let negative_rotation_speed = -rotation_speed;
                         let old_dir_x = player_direction.x;
-                        player_direction.x = player_direction.x * negative_rotation_speed.cos() - player_direction.y * negative_rotation_speed.sin();
-                        player_direction.y =old_dir_x * negative_rotation_speed.sin() + player_direction.y * negative_rotation_speed.cos();
+                        player_direction.x = player_direction.x * negative_rotation_speed.cos()
+                            - player_direction.y * negative_rotation_speed.sin();
+                        player_direction.y = old_dir_x * negative_rotation_speed.sin()
+                            + player_direction.y * negative_rotation_speed.cos();
                         let old_plane_x = plane_position.x;
-                        plane_position.x = plane_position.x * negative_rotation_speed.cos() - plane_position.y * negative_rotation_speed.sin();
-                        plane_position.y = old_plane_x * negative_rotation_speed.sin() + plane_position.y * negative_rotation_speed.cos();
+                        plane_position.x = plane_position.x * negative_rotation_speed.cos()
+                            - plane_position.y * negative_rotation_speed.sin();
+                        plane_position.y = old_plane_x * negative_rotation_speed.sin()
+                            + plane_position.y * negative_rotation_speed.cos();
                     }
                     _ => {}
                 },
