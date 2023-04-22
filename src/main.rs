@@ -7,7 +7,7 @@ use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use sdl2::video::Window;
 use std::ops::Add;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 const MAP_WIDTH: usize = 24;
 const MAP_HEIGHT: usize = 24;
@@ -178,8 +178,7 @@ fn main() -> Result<(), String> {
     let mut player_direction = Vec2D::new(-1.0, 0.0);
     let mut plane_position = Vec2D::new(0.0, 0.66);
 
-    let mut _time = 0.0; //time of current frame
-    let mut _old_time = 0.0; //time of previous frame
+    let mut time = SystemTime::now(); //time of current frame
 
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
@@ -293,7 +292,12 @@ fn main() -> Result<(), String> {
         }
 
         renderer.draw()?;
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+        let elapsed = time.elapsed().unwrap();
+        let sleep_time = Duration::new(0, 1_000_000_000u32 / 30);
+        let time_diff = if elapsed > sleep_time {Duration::new(0, 1u32)} else {sleep_time - elapsed};
+        time = SystemTime::now();
+        ::std::thread::sleep(time_diff);
+
         renderer.canvas.set_draw_color(Color {
             a: 100,
             r: 40,
