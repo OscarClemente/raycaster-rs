@@ -185,7 +185,7 @@ fn main() -> Result<(), String> {
 
     let window = video_subsystem
         .window(
-            "Snake Game",
+            "raycaster-rs",
             (SCREEN_WIDTH).try_into().unwrap(),
             (SCREEN_HEIGHT).try_into().unwrap(),
         )
