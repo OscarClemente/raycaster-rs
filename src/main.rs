@@ -112,7 +112,6 @@ impl Vec2D {
     }
 }
 
-
 pub struct Renderer {
     canvas: WindowCanvas,
 }
@@ -123,101 +122,123 @@ impl Renderer {
         Ok(Renderer { canvas })
     }
 
-    pub fn tick(&mut self, game_context: GameContext) -> Result<(), String> {
+    fn calculate_line(&mut self, game_context: GameContext, x: f64) -> (i32, i32, Color) {
+        let camera_x: f64 = 2.0 * x / (SCREEN_WIDTH as f64) - 1.0;
+        let raydir_x: f64 =
+            game_context.player_direction.x + game_context.plane_position.x * camera_x;
+        let raydir_y: f64 =
+            game_context.player_direction.y + game_context.plane_position.y * camera_x;
+
+        let mut map_x: i32 = game_context.player_position.x as i32;
+        let mut map_y: i32 = game_context.player_position.y as i32;
+
+        let mut side_dist_x: f64;
+        let mut side_dist_y: f64;
+
+        let delta_dist_x: f64 = if raydir_x == 0.0 {
+            1e30
+        } else {
+            (1.0 / raydir_x).abs()
+        };
+        let delta_dist_y: f64 = if raydir_y == 0.0 {
+            1e30
+        } else {
+            (1.0 / raydir_y).abs()
+        };
+
+        let step_x: i32;
+        let step_y: i32;
+
+        // can be reused an use raydir, player_position, map, delta_dist
+        if raydir_x < 0.0 {
+            step_x = -1;
+            side_dist_x = (game_context.player_position.x - map_x as f64) * delta_dist_x;
+        } else {
+            step_x = 1;
+            side_dist_x = (map_x as f64 + 1.0 - game_context.player_position.x) * delta_dist_x;
+        }
+        if raydir_y < 0.0 {
+            step_y = -1;
+            side_dist_y = (game_context.player_position.y - map_y as f64) * delta_dist_y;
+        } else {
+            step_y = 1;
+            side_dist_y = (map_y as f64 + 1.0 - game_context.player_position.y) * delta_dist_y;
+        }
+
+        // vals used in DDA side_dist_x, side_dist_y, map_x, step_x, map_y, step_y
+        let mut hit: i32 = 0;
+        let mut side: i32 = 0;
+
+        while hit == 0 {
+            if side_dist_x < side_dist_y {
+                side_dist_x += delta_dist_x;
+                map_x += step_x;
+                side = 0;
+            } else {
+                side_dist_y += delta_dist_y;
+                map_y += step_y;
+                side = 1;
+            }
+            if WORLD_MAP[map_x as usize][map_y as usize] > 0 {
+                hit = 1;
+            }
+        }
+        let perpwalldist = if side == 0 {
+            side_dist_x - delta_dist_x
+        } else {
+            side_dist_y - delta_dist_y
+        };
+
+        // vals used here SCREEN_HEIGHT, perpwalldist, map_x, map_y, side
+        let line_height = (SCREEN_HEIGHT as f64 / perpwalldist) as i32;
+        let mut draw_start: i32 = -line_height / 2 + SCREEN_HEIGHT as i32 / 2;
+        if draw_start < 0 {
+            draw_start = 0
+        };
+        let mut draw_end: i32 = line_height / 2 + SCREEN_HEIGHT as i32 / 2;
+        if draw_end >= SCREEN_HEIGHT as i32 {
+            draw_end = SCREEN_HEIGHT as i32 - 1
+        };
+
+        let mut color = match WORLD_MAP[map_x as usize][map_y as usize] {
+            1 => Color::RED,
+            2 => Color::GREEN,
+            3 => Color::BLUE,
+            4 => Color::WHITE,
+            _ => Color::YELLOW,
+        };
+
+        if side == 1 {
+            color = Color {
+                r: color.r / 2,
+                g: color.g / 2,
+                b: color.b / 2,
+                a: color.a,
+            }
+        };
+
+        return (draw_start, draw_end, color);
+    }
+
+    fn draw_screen(&mut self, game_context: GameContext) -> Result<(), String> {
         for x in 0..(SCREEN_WIDTH - 1) {
-            let camera_x: f64 = 2.0 * (x as f64) / (SCREEN_WIDTH as f64) - 1.0;
-            let raydir_x: f64 = game_context.player_direction.x + game_context.plane_position.x * camera_x;
-            let raydir_y: f64 = game_context.player_direction.y + game_context.plane_position.y * camera_x;
-
-            let mut map_x: i32 = game_context.player_position.x as i32;
-            let mut map_y: i32 = game_context.player_position.y as i32;
-
-            let mut side_dist_x: f64;
-            let mut side_dist_y: f64;
-
-            let delta_dist_x: f64 = if raydir_x == 0.0 {
-                1e30
-            } else {
-                (1.0 / raydir_x).abs()
-            };
-            let delta_dist_y: f64 = if raydir_y == 0.0 {
-                1e30
-            } else {
-                (1.0 / raydir_y).abs()
-            };
-
-            let step_x: i32;
-            let step_y: i32;
-
-            // can be reused an use raydir, player_position, map, delta_dist
-            if raydir_x < 0.0 {
-                step_x = -1;
-                side_dist_x = (game_context.player_position.x - map_x as f64) * delta_dist_x;
-            } else {
-                step_x = 1;
-                side_dist_x = (map_x as f64 + 1.0 - game_context.player_position.x) * delta_dist_x;
-            }
-            if raydir_y < 0.0 {
-                step_y = -1;
-                side_dist_y = (game_context.player_position.y - map_y as f64) * delta_dist_y;
-            } else {
-                step_y = 1;
-                side_dist_y = (map_y as f64 + 1.0 - game_context.player_position.y) * delta_dist_y;
-            }
-
-            // vals used in DDA side_dist_x, side_dist_y, map_x, step_x, map_y, step_y
-            let mut hit: i32 = 0;
-            let mut side: i32 = 0;
-
-            while hit == 0 {
-                if side_dist_x < side_dist_y {
-                    side_dist_x += delta_dist_x;
-                    map_x += step_x;
-                    side = 0;
-                } else {
-                    side_dist_y += delta_dist_y;
-                    map_y += step_y;
-                    side = 1;
-                }
-                if WORLD_MAP[map_x as usize][map_y as usize] > 0 {
-                    hit = 1;
-                }
-            }
-            let perpwalldist = if side == 0 {
-                side_dist_x - delta_dist_x
-            } else {
-                side_dist_y - delta_dist_y
-            };
-
-            // vals used here SCREEN_HEIGHT, perpwalldist, map_x, map_y, side
-            let line_height = (SCREEN_HEIGHT as f64 / perpwalldist) as i32;
-            let mut draw_start: i32 = -line_height / 2 + SCREEN_HEIGHT as i32 / 2;
-            if draw_start < 0 {
-                draw_start = 0
-            };
-            let mut draw_end: i32 = line_height / 2 + SCREEN_HEIGHT as i32 / 2;
-            if draw_end >= SCREEN_HEIGHT as i32 {
-                draw_end = SCREEN_HEIGHT as i32 - 1
-            };
-
-            let mut color = match WORLD_MAP[map_x as usize][map_y as usize] {
-                1 => Color::RED,
-                2 => Color::GREEN,
-                3 => Color::BLUE,
-                4 => Color::WHITE,
-                _ => Color::YELLOW,
-            };
-
-            if side == 1 {
-                color = Color {
-                    r: color.r / 2,
-                    g: color.g / 2,
-                    b: color.b / 2,
-                    a: color.a,
-                }
-            };
+            let (draw_start, draw_end, color) = self.calculate_line(game_context, x as f64);
             self.draw_vertical_line(x as i32, draw_start, draw_end, color)?;
         }
+
+        Ok(())
+    }
+
+    pub fn draw_vertical_line(
+        &mut self,
+        x: i32,
+        y_top: i32,
+        y_bottom: i32,
+        color: Color,
+    ) -> Result<(), String> {
+        self.canvas.set_draw_color(color);
+        self.canvas
+            .fill_rect(Rect::new(x, y_top, 1, (y_bottom - y_top) as u32))?;
 
         Ok(())
     }
@@ -237,21 +258,8 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn draw_vertical_line(
-        &mut self,
-        x: i32,
-        y_top: i32,
-        y_bottom: i32,
-        color: Color,
-    ) -> Result<(), String> {
-        self.canvas.set_draw_color(color);
-        self.canvas
-            .fill_rect(Rect::new(x, y_top, 1, (y_bottom - y_top) as u32))?;
-
-        Ok(())
-    }
-
-    pub fn draw(&mut self) -> Result<(), String> {
+    pub fn draw(&mut self, game_context: GameContext) -> Result<(), String> {
+        self.draw_screen(game_context)?;
         self.canvas.present();
 
         Ok(())
@@ -304,13 +312,15 @@ fn main() -> Result<(), String> {
 
     let mut renderer = Renderer::new(window)?;
 
-
     'running: loop {
-        renderer.tick(game_context)?;
-        renderer.draw()?;
+        renderer.draw(game_context)?;
         let elapsed = game_context.time.elapsed().unwrap();
         let sleep_time = Duration::new(0, 1_000_000_000u32 / 30);
-        let time_diff = if elapsed > sleep_time {Duration::new(0, 1u32)} else {sleep_time - elapsed};
+        let time_diff = if elapsed > sleep_time {
+            Duration::new(0, 1u32)
+        } else {
+            sleep_time - elapsed
+        };
         game_context.time = SystemTime::now();
         ::std::thread::sleep(time_diff);
 
@@ -378,12 +388,14 @@ fn main() -> Result<(), String> {
                     }
                     Keycode::A | Keycode::H => {
                         let old_dir_x = game_context.player_direction.x;
-                        game_context.player_direction.x = game_context.player_direction.x * rotation_speed.cos()
+                        game_context.player_direction.x = game_context.player_direction.x
+                            * rotation_speed.cos()
                             - game_context.player_direction.y * rotation_speed.sin();
                         game_context.player_direction.y = old_dir_x * rotation_speed.sin()
                             + game_context.player_direction.y * rotation_speed.cos();
                         let old_plane_x = game_context.plane_position.x;
-                        game_context.plane_position.x = game_context.plane_position.x * rotation_speed.cos()
+                        game_context.plane_position.x = game_context.plane_position.x
+                            * rotation_speed.cos()
                             - game_context.plane_position.y * rotation_speed.sin();
                         game_context.plane_position.y = old_plane_x * rotation_speed.sin()
                             + game_context.plane_position.y * rotation_speed.cos();
@@ -391,12 +403,14 @@ fn main() -> Result<(), String> {
                     Keycode::D | Keycode::L => {
                         let negative_rotation_speed = -rotation_speed;
                         let old_dir_x = game_context.player_direction.x;
-                        game_context.player_direction.x = game_context.player_direction.x * negative_rotation_speed.cos()
+                        game_context.player_direction.x = game_context.player_direction.x
+                            * negative_rotation_speed.cos()
                             - game_context.player_direction.y * negative_rotation_speed.sin();
                         game_context.player_direction.y = old_dir_x * negative_rotation_speed.sin()
                             + game_context.player_direction.y * negative_rotation_speed.cos();
                         let old_plane_x = game_context.plane_position.x;
-                        game_context.plane_position.x = game_context.plane_position.x * negative_rotation_speed.cos()
+                        game_context.plane_position.x = game_context.plane_position.x
+                            * negative_rotation_speed.cos()
                             - game_context.plane_position.y * negative_rotation_speed.sin();
                         game_context.plane_position.y = old_plane_x * negative_rotation_speed.sin()
                             + game_context.plane_position.y * negative_rotation_speed.cos();
