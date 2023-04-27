@@ -6,7 +6,6 @@ use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use sdl2::video::Window;
-use std::ops::Add;
 use std::time::{Duration, SystemTime};
 
 const MAP_WIDTH: usize = 24;
@@ -90,24 +89,13 @@ const WORLD_MAP: [&[i32; MAP_WIDTH]; MAP_HEIGHT] = [
 ];
 
 #[derive(Clone, Copy, PartialEq)]
-pub struct Vec2D {
-    x: f64,
-    y: f64,
+struct Vec2D<T> {
+    x: T,
+    y: T,
 }
 
-impl Add<Vec2D> for Vec2D {
-    type Output = Vec2D;
-
-    fn add(self, rhs: Vec2D) -> Self::Output {
-        Vec2D {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-        }
-    }
-}
-
-impl Vec2D {
-    pub fn new(x: f64, y: f64) -> Vec2D {
+impl<T> Vec2D<T> {
+    pub fn new(x: T, y: T) -> Vec2D<T> {
         Vec2D { x, y }
     }
 }
@@ -124,72 +112,67 @@ impl Renderer {
 
     fn calculate_line(&mut self, game_context: GameContext, x: f64) -> (i32, i32, Color) {
         let camera_x: f64 = 2.0 * x / (SCREEN_WIDTH as f64) - 1.0;
-        let raydir_x: f64 =
-            game_context.player_direction.x + game_context.plane_position.x * camera_x;
-        let raydir_y: f64 =
-            game_context.player_direction.y + game_context.plane_position.y * camera_x;
+        let raydir = Vec2D::new(game_context.player_direction.x + game_context.plane_position.x * camera_x,  game_context.player_direction.y + game_context.plane_position.y * camera_x);
 
-        let mut map_x: i32 = game_context.player_position.x as i32;
-        let mut map_y: i32 = game_context.player_position.y as i32;
+        let mut map = Vec2D::new(game_context.player_position.x as i32, game_context.player_position.y as i32);
 
-        let mut side_dist_x: f64;
-        let mut side_dist_y: f64;
+        let mut side_dist = Vec2D::new(0.0, 0.0);
+        let mut delta_dist = Vec2D::new(0.0, 0.0);
 
-        let delta_dist_x: f64 = if raydir_x == 0.0 {
+        delta_dist.x = if raydir.x == 0.0 {
             1e30
         } else {
-            (1.0 / raydir_x).abs()
+            (1.0 / raydir.x).abs()
         };
-        let delta_dist_y: f64 = if raydir_y == 0.0 {
+        delta_dist.y = if raydir.y == 0.0 {
             1e30
         } else {
-            (1.0 / raydir_y).abs()
+            (1.0 / raydir.y).abs()
         };
 
-        let step_x: i32;
-        let step_y: i32;
+        let mut step = Vec2D::new(0, 0);
 
         // can be reused an use raydir, player_position, map, delta_dist
-        if raydir_x < 0.0 {
-            step_x = -1;
-            side_dist_x = (game_context.player_position.x - map_x as f64) * delta_dist_x;
+        if raydir.x < 0.0 {
+            step.x = -1;
+            side_dist.x = (game_context.player_position.x - map.x as f64) * delta_dist.x;
         } else {
-            step_x = 1;
-            side_dist_x = (map_x as f64 + 1.0 - game_context.player_position.x) * delta_dist_x;
+            step.x = 1;
+            side_dist.x = (map.x as f64 + 1.0 - game_context.player_position.x) * delta_dist.x;
         }
-        if raydir_y < 0.0 {
-            step_y = -1;
-            side_dist_y = (game_context.player_position.y - map_y as f64) * delta_dist_y;
+        if raydir.y < 0.0 {
+            step.y = -1;
+            side_dist.y = (game_context.player_position.y - map.y as f64) * delta_dist.y;
         } else {
-            step_y = 1;
-            side_dist_y = (map_y as f64 + 1.0 - game_context.player_position.y) * delta_dist_y;
+            step.y = 1;
+            side_dist.y = (map.y as f64 + 1.0 - game_context.player_position.y) * delta_dist.y;
         }
 
-        // vals used in DDA side_dist_x, side_dist_y, map_x, step_x, map_y, step_y
+        // vals used in DDA side_dist.x, side_dist.y, map.x, step.x, map.y, step.y
         let mut hit: i32 = 0;
         let mut side: i32 = 0;
 
         while hit == 0 {
-            if side_dist_x < side_dist_y {
-                side_dist_x += delta_dist_x;
-                map_x += step_x;
+            if side_dist.x < side_dist.y {
+                side_dist.x += delta_dist.x;
+                map.x += step.x;
                 side = 0;
             } else {
-                side_dist_y += delta_dist_y;
-                map_y += step_y;
+                side_dist.y += delta_dist.y;
+                map.y += step.y;
                 side = 1;
             }
-            if WORLD_MAP[map_x as usize][map_y as usize] > 0 {
+            if WORLD_MAP[map.x as usize][map.y as usize] > 0 {
                 hit = 1;
             }
         }
         let perpwalldist = if side == 0 {
-            side_dist_x - delta_dist_x
+            side_dist.x - delta_dist.x
         } else {
-            side_dist_y - delta_dist_y
+            side_dist.y - delta_dist.y
         };
 
-        // vals used here SCREEN_HEIGHT, perpwalldist, map_x, map_y, side
+        // vals used here SCREEN_HEIGHT, perpwalldist, map.x, map.y, side
         let line_height = (SCREEN_HEIGHT as f64 / perpwalldist) as i32;
         let mut draw_start: i32 = -line_height / 2 + SCREEN_HEIGHT as i32 / 2;
         if draw_start < 0 {
@@ -200,7 +183,7 @@ impl Renderer {
             draw_end = SCREEN_HEIGHT as i32 - 1
         };
 
-        let mut color = match WORLD_MAP[map_x as usize][map_y as usize] {
+        let mut color = match WORLD_MAP[map.x as usize][map.y as usize] {
             1 => Color::RED,
             2 => Color::GREEN,
             3 => Color::BLUE,
@@ -274,9 +257,9 @@ impl Renderer {
 
 #[derive(Clone, Copy)]
 pub struct GameContext {
-    player_position: Vec2D,
-    player_direction: Vec2D,
-    plane_position: Vec2D,
+    player_position: Vec2D<f64>,
+    player_direction: Vec2D<f64>,
+    plane_position: Vec2D<f64>,
     time: SystemTime,
 }
 
@@ -348,8 +331,7 @@ fn main() -> Result<(), String> {
         let move_speed: f64 = frame_time * 5.0;
         let rotation_speed: f64 = frame_time * 3.0;
 
-        let move_x: f64 = game_context.player_direction.x * move_speed;
-        let move_y: f64 = game_context.player_direction.y * move_speed;
+        let movement = Vec2D::new(game_context.player_direction.x * move_speed, game_context.player_direction.y * move_speed);
 
         for event in event_pump.poll_iter() {
             match event {
@@ -359,31 +341,31 @@ fn main() -> Result<(), String> {
                     ..
                 } => match keycode {
                     Keycode::W | Keycode::K => {
-                        if WORLD_MAP[(game_context.player_position.x + move_x) as usize]
+                        if WORLD_MAP[(game_context.player_position.x + movement.x) as usize]
                             [game_context.player_position.y as usize]
                             == 0
                         {
-                            game_context.player_position.x += move_x
+                            game_context.player_position.x += movement.x
                         };
                         if WORLD_MAP[game_context.player_position.x as usize]
-                            [(game_context.player_position.y + move_y) as usize]
+                            [(game_context.player_position.y + movement.y) as usize]
                             == 0
                         {
-                            game_context.player_position.y += move_y
+                            game_context.player_position.y += movement.y
                         };
                     }
                     Keycode::S | Keycode::J => {
-                        if WORLD_MAP[(game_context.player_position.x - move_x) as usize]
+                        if WORLD_MAP[(game_context.player_position.x - movement.x) as usize]
                             [game_context.player_position.y as usize]
                             == 0
                         {
-                            game_context.player_position.x -= move_x
+                            game_context.player_position.x -= movement.x
                         };
                         if WORLD_MAP[game_context.player_position.x as usize]
-                            [(game_context.player_position.y - move_y) as usize]
+                            [(game_context.player_position.y - movement.y) as usize]
                             == 0
                         {
-                            game_context.player_position.y -= move_y
+                            game_context.player_position.y -= movement.y
                         };
                     }
                     Keycode::A | Keycode::H => {
