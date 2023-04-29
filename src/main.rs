@@ -112,11 +112,16 @@ impl Renderer {
 
     fn calculate_line(&mut self, game_context: GameContext, x: f64) -> (i32, i32, Color) {
         let camera_x: f64 = 2.0 * x / (SCREEN_WIDTH as f64) - 1.0;
-        let raydir = Vec2D::new(game_context.player_direction.x + game_context.plane_position.x * camera_x,  game_context.player_direction.y + game_context.plane_position.y * camera_x);
+        let raydir = Vec2D::new(
+            game_context.player_direction.x + game_context.plane_position.x * camera_x,
+            game_context.player_direction.y + game_context.plane_position.y * camera_x,
+        );
 
-        let mut map = Vec2D::new(game_context.player_position.x as i32, game_context.player_position.y as i32);
+        let map = Vec2D::new(
+            game_context.player_position.x as i32,
+            game_context.player_position.y as i32,
+        );
 
-        let mut side_dist = Vec2D::new(0.0, 0.0);
         let mut delta_dist = Vec2D::new(0.0, 0.0);
 
         delta_dist.x = if raydir.x == 0.0 {
@@ -130,6 +135,33 @@ impl Renderer {
             (1.0 / raydir.y).abs()
         };
 
+        let (step, side_dist) = self.calc_step_and_side_dist(game_context, raydir, map, delta_dist);
+
+        // vals used in DDA side_dist.x, side_dist.y, map.x, step.x, map.y, step.y
+        let (side_dist, map, side) = self.calc_dda(map, step, side_dist, delta_dist);
+
+        let perpwalldist = if side == 0 {
+            side_dist.x - delta_dist.x
+        } else {
+            side_dist.y - delta_dist.y
+        };
+
+        // vals used here SCREEN_HEIGHT, perpwalldist, map.x, map.y, side
+        let (draw_start, draw_end) = self.calculate_draw_start_and_end(perpwalldist);
+
+        let color = self.get_color(map, side);
+
+        return (draw_start, draw_end, color);
+    }
+
+    fn calc_step_and_side_dist(
+        &mut self,
+        game_context: GameContext,
+        raydir: Vec2D<f64>,
+        map: Vec2D<i32>,
+        delta_dist: Vec2D<f64>,
+    ) -> (Vec2D<i32>, Vec2D<f64>) {
+        let mut side_dist = Vec2D::new(0.0, 0.0);
         let mut step = Vec2D::new(0, 0);
 
         // can be reused an use raydir, player_position, map, delta_dist
@@ -148,11 +180,19 @@ impl Renderer {
             side_dist.y = (map.y as f64 + 1.0 - game_context.player_position.y) * delta_dist.y;
         }
 
-        // vals used in DDA side_dist.x, side_dist.y, map.x, step.x, map.y, step.y
-        let mut hit: i32 = 0;
-        let mut side: i32 = 0;
+        return (step, side_dist);
+    }
 
-        while hit == 0 {
+    fn calc_dda(
+        &mut self,
+        mut map: Vec2D<i32>,
+        step: Vec2D<i32>,
+        mut side_dist: Vec2D<f64>,
+        delta_dist: Vec2D<f64>,
+    ) -> (Vec2D<f64>, Vec2D<i32>, i32) {
+        let mut side: i32;
+
+        loop {
             if side_dist.x < side_dist.y {
                 side_dist.x += delta_dist.x;
                 map.x += step.x;
@@ -163,17 +203,15 @@ impl Renderer {
                 side = 1;
             }
             if WORLD_MAP[map.x as usize][map.y as usize] > 0 {
-                hit = 1;
+                break;
             }
         }
-        let perpwalldist = if side == 0 {
-            side_dist.x - delta_dist.x
-        } else {
-            side_dist.y - delta_dist.y
-        };
 
-        // vals used here SCREEN_HEIGHT, perpwalldist, map.x, map.y, side
-        let line_height = (SCREEN_HEIGHT as f64 / perpwalldist) as i32;
+        return (side_dist, map, side);
+    }
+
+    fn calculate_draw_start_and_end(&mut self, wall_distance: f64) -> (i32, i32) {
+        let line_height = (SCREEN_HEIGHT as f64 / wall_distance) as i32;
         let mut draw_start: i32 = -line_height / 2 + SCREEN_HEIGHT as i32 / 2;
         if draw_start < 0 {
             draw_start = 0
@@ -183,6 +221,10 @@ impl Renderer {
             draw_end = SCREEN_HEIGHT as i32 - 1
         };
 
+        return (draw_start, draw_end);
+    }
+
+    fn get_color(&mut self, map: Vec2D<i32>, side: i32) -> Color {
         let mut color = match WORLD_MAP[map.x as usize][map.y as usize] {
             1 => Color::RED,
             2 => Color::GREEN,
@@ -200,7 +242,7 @@ impl Renderer {
             }
         };
 
-        return (draw_start, draw_end, color);
+        return color;
     }
 
     fn draw_screen(&mut self, game_context: GameContext) -> Result<(), String> {
@@ -331,7 +373,10 @@ fn main() -> Result<(), String> {
         let move_speed: f64 = frame_time * 5.0;
         let rotation_speed: f64 = frame_time * 3.0;
 
-        let movement = Vec2D::new(game_context.player_direction.x * move_speed, game_context.player_direction.y * move_speed);
+        let movement = Vec2D::new(
+            game_context.player_direction.x * move_speed,
+            game_context.player_direction.y * move_speed,
+        );
 
         for event in event_pump.poll_iter() {
             match event {
