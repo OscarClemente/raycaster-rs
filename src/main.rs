@@ -1,6 +1,6 @@
 extern crate sdl2;
 
-use sdl2::event::Event;
+use sdl2::{event::Event, EventPump};
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
@@ -116,7 +116,6 @@ impl Renderer {
             game_context.player_direction.x + game_context.plane_position.x * camera_x,
             game_context.player_direction.y + game_context.plane_position.y * camera_x,
         );
-
         let map = Vec2D::new(
             game_context.player_position.x as i32,
             game_context.player_position.y as i32,
@@ -136,8 +135,6 @@ impl Renderer {
         };
 
         let (step, side_dist) = self.calc_step_and_side_dist(game_context, raydir, map, delta_dist);
-
-        // vals used in DDA side_dist.x, side_dist.y, map.x, step.x, map.y, step.y
         let (side_dist, map, side) = self.calc_dda(map, step, side_dist, delta_dist);
 
         let perpwalldist = if side == 0 {
@@ -146,9 +143,7 @@ impl Renderer {
             side_dist.y - delta_dist.y
         };
 
-        // vals used here SCREEN_HEIGHT, perpwalldist, map.x, map.y, side
         let (draw_start, draw_end) = self.calculate_draw_start_and_end(perpwalldist);
-
         let color = self.get_color(map, side);
 
         return (draw_start, draw_end, color);
@@ -164,7 +159,6 @@ impl Renderer {
         let mut side_dist = Vec2D::new(0.0, 0.0);
         let mut step = Vec2D::new(0, 0);
 
-        // can be reused an use raydir, player_position, map, delta_dist
         if raydir.x < 0.0 {
             step.x = -1;
             side_dist.x = (game_context.player_position.x - map.x as f64) * delta_dist.x;
@@ -317,58 +311,16 @@ impl GameContext {
     pub fn next_tick(&mut self) {}
 }
 
-fn main() -> Result<(), String> {
-    let mut game_context = GameContext::new();
-    let sdl_context = sdl2::init()?;
-    let video_subsystem = sdl_context.video()?;
+pub struct KeyboardEventHandler {
+    event_pump: EventPump,
+}
 
-    let window = video_subsystem
-        .window(
-            "raycaster-rs",
-            (SCREEN_WIDTH).try_into().unwrap(),
-            (SCREEN_HEIGHT).try_into().unwrap(),
-        )
-        .position_centered()
-        .opengl()
-        .build()
-        .map_err(|e| e.to_string())?;
+impl KeyboardEventHandler {
+    pub fn new(event_pump: EventPump) -> KeyboardEventHandler {
+        KeyboardEventHandler { event_pump }
+    }
 
-    let mut event_pump = sdl_context.event_pump()?;
-
-    let mut renderer = Renderer::new(window)?;
-
-    'running: loop {
-        renderer.draw(game_context)?;
-        let elapsed = game_context.time.elapsed().unwrap();
-        let sleep_time = Duration::new(0, 1_000_000_000u32 / 30);
-        let time_diff = if elapsed > sleep_time {
-            Duration::new(0, 1u32)
-        } else {
-            sleep_time - elapsed
-        };
-        game_context.time = SystemTime::now();
-        ::std::thread::sleep(time_diff);
-
-        renderer.canvas.set_draw_color(Color {
-            a: 100,
-            r: 40,
-            g: 40,
-            b: 40,
-        });
-        renderer.canvas.clear();
-        renderer.draw_box(
-            0,
-            0,
-            SCREEN_WIDTH as i32,
-            SCREEN_HEIGHT as i32 / 2,
-            Color {
-                a: 100,
-                r: 135,
-                g: 206,
-                b: 235,
-            },
-        )?;
-
+    pub fn handle_events(&mut self, game_context: &mut GameContext) -> bool {
         let frame_time: f64 = 0.016;
         let move_speed: f64 = frame_time * 5.0;
         let rotation_speed: f64 = frame_time * 3.0;
@@ -378,13 +330,14 @@ fn main() -> Result<(), String> {
             game_context.player_direction.y * move_speed,
         );
 
-        for event in event_pump.poll_iter() {
+        for event in self.event_pump.poll_iter() {
             match event {
-                Event::Quit { .. } => break 'running,
+                Event::Quit { .. } => { return true; }
                 Event::KeyDown {
                     keycode: Some(keycode),
                     ..
                 } => match keycode {
+                    Keycode::Q => { return true; }
                     Keycode::W | Keycode::K => {
                         if WORLD_MAP[(game_context.player_position.x + movement.x) as usize]
                             [game_context.player_position.y as usize]
@@ -446,6 +399,68 @@ fn main() -> Result<(), String> {
                 },
                 _ => {}
             }
+        }
+
+        return false;
+    }
+}
+
+fn main() -> Result<(), String> {
+    let mut game_context = GameContext::new();
+    let sdl_context = sdl2::init()?;
+    let video_subsystem = sdl_context.video()?;
+
+    let window = video_subsystem
+        .window(
+            "raycaster-rs",
+            (SCREEN_WIDTH).try_into().unwrap(),
+            (SCREEN_HEIGHT).try_into().unwrap(),
+        )
+        .position_centered()
+        .opengl()
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let event_pump = sdl_context.event_pump()?;
+    let mut keyboard_event_handler = KeyboardEventHandler::new(event_pump);
+
+    let mut renderer = Renderer::new(window)?;
+
+    loop {
+        renderer.draw(game_context)?;
+        let elapsed = game_context.time.elapsed().unwrap();
+        let sleep_time = Duration::new(0, 1_000_000_000u32 / 30);
+        let time_diff = if elapsed > sleep_time {
+            Duration::new(0, 1u32)
+        } else {
+            sleep_time - elapsed
+        };
+        game_context.time = SystemTime::now();
+        ::std::thread::sleep(time_diff);
+
+        renderer.canvas.set_draw_color(Color {
+            a: 100,
+            r: 40,
+            g: 40,
+            b: 40,
+        });
+        renderer.canvas.clear();
+        renderer.draw_box(
+            0,
+            0,
+            SCREEN_WIDTH as i32,
+            SCREEN_HEIGHT as i32 / 2,
+            Color {
+                a: 100,
+                r: 135,
+                g: 206,
+                b: 235,
+            },
+        )?;
+
+        let quit = keyboard_event_handler.handle_events(&mut game_context);
+        if quit {
+            break;
         }
     }
 
