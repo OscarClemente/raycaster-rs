@@ -283,12 +283,6 @@ impl Renderer {
 
         Ok(())
     }
-
-    /*fn draw_background(&mut self, context: &GameContext) {
-        let color = Color::RED;
-        self.canvas.set_draw_color(color);
-        self.canvas.clear();
-    }*/
 }
 
 #[derive(Clone, Copy)]
@@ -308,7 +302,6 @@ impl GameContext {
             time: SystemTime::now(), //time of current frame
         }
     }
-    pub fn next_tick(&mut self) {}
 }
 
 pub struct KeyboardEventHandler {
