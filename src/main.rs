@@ -1,17 +1,19 @@
 extern crate sdl2;
 
-use sdl2::{event::Event, EventPump};
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use sdl2::video::Window;
+use sdl2::{event::Event, EventPump};
 use std::time::{Duration, SystemTime};
 
 const MAP_WIDTH: usize = 24;
 const MAP_HEIGHT: usize = 24;
 const SCREEN_WIDTH: usize = 1280;
 const SCREEN_HEIGHT: usize = 720;
+const TEXTURE_WIDTH: usize = 64;
+const TEXTURE_HEIGHT: usize = 64;
 
 const WORLD_MAP: [&[i32; MAP_WIDTH]; MAP_HEIGHT] = [
     &[
@@ -102,12 +104,16 @@ impl<T> Vec2D<T> {
 
 pub struct Renderer {
     canvas: WindowCanvas,
+    buffer: Vec<Vec<u32>>,
 }
 
 impl Renderer {
     pub fn new(window: Window) -> Result<Renderer, String> {
         let canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-        Ok(Renderer { canvas })
+        Ok(Renderer {
+            canvas,
+            buffer: vec![vec![0u32]],
+        })
     }
 
     fn calculate_line(&mut self, game_context: GameContext, x: f64) -> (i32, i32, Color) {
@@ -325,12 +331,16 @@ impl KeyboardEventHandler {
 
         for event in self.event_pump.poll_iter() {
             match event {
-                Event::Quit { .. } => { return true; }
+                Event::Quit { .. } => {
+                    return true;
+                }
                 Event::KeyDown {
                     keycode: Some(keycode),
                     ..
                 } => match keycode {
-                    Keycode::Q => { return true; }
+                    Keycode::Q => {
+                        return true;
+                    }
                     Keycode::W | Keycode::K => {
                         if WORLD_MAP[(game_context.player_position.x + movement.x) as usize]
                             [game_context.player_position.y as usize]
@@ -418,6 +428,27 @@ fn main() -> Result<(), String> {
     let mut keyboard_event_handler = KeyboardEventHandler::new(event_pump);
 
     let mut renderer = Renderer::new(window)?;
+    let mut textures: [Vec<u32>; 8] = Default::default();
+
+    // generate textures
+    for x in 0..TEXTURE_WIDTH {
+        for y in 0..TEXTURE_HEIGHT {
+            let xorcolor = ((x * 256 / TEXTURE_WIDTH) ^ (y * 256 / TEXTURE_HEIGHT)) as u32;
+            //int xcolor = x * 256 / TEXTURE_WIDTH;
+            let ycolor = (y * 256 / TEXTURE_HEIGHT) as u32;
+            let xycolor = (y * 128 / TEXTURE_HEIGHT + x * 128 / TEXTURE_WIDTH) as u32;
+            let cross_filter = (x != y && x != TEXTURE_WIDTH - y) as u32; //flat red texture with black cross
+            let brick_padding = ((x % 16) | (y % 16)) as u32;
+            textures[0].push(65536 * 254 * cross_filter); //flat red texture with black cross
+            textures[1].push(xycolor + 256 * xycolor + 65536 * xycolor); //sloped greyscale
+            textures[2].push(256 * xycolor + 65536 * xycolor); //sloped yellow gradient
+            textures[3].push(xorcolor + 256 * xorcolor + 65536 * xorcolor); //xor greyscale
+            textures[4].push(256 * xorcolor); //xor green
+            textures[5].push(65536 * 192 * brick_padding);
+            textures[6].push(65536 * ycolor); //red gradient
+            textures[7].push(128 + 256 * 128 + 65536 * 128); //flat grey texture
+        }
+    }
 
     loop {
         renderer.draw(game_context)?;
