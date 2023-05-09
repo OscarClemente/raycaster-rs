@@ -149,8 +149,35 @@ impl Renderer {
             side_dist.y - delta_dist.y
         };
 
-        let (draw_start, draw_end) = self.calculate_draw_start_and_end(perpwalldist);
+        let (line_height, draw_start, draw_end) = self.calculate_draw_start_and_end(perpwalldist);
+        // for textures
+
         let color = self.get_color(map, side);
+
+        // textures stuff
+        let text_num = WORLD_MAP[map.x as usize][map.y as usize];
+        let mut wall_x = if side == 0 {
+            game_context.player_position.y + perpwalldist * raydir.y
+        } else {
+            game_context.player_position.x + perpwalldist * raydir.x
+        };
+        wall_x -= wall_x.floor();
+        let mut tex_x = (wall_x * TEXTURE_WIDTH as f64) as i32;
+        if side == 0 && raydir.x > 0.0 { tex_x = TEXTURE_WIDTH as i32 - tex_x - 1};
+        if side == 1 && raydir.y < 0.0 { tex_x = TEXTURE_WIDTH as i32 - tex_x - 1};
+
+        let tex_step = 1.0 * TEXTURE_HEIGHT as f64 / line_height as f64;
+        let mut tex_pos = (draw_start - SCREEN_HEIGHT as i32 / 2 + line_height / 2) as f64 * tex_step;
+
+        for y in draw_start..draw_end {
+            let tex_y = tex_pos as i32 & (TEXTURE_HEIGHT as i32 - 1);
+            tex_pos += tex_step;
+        /*    //
+        Uint32 color = texture[texNum][texHeight * texY + texX];
+        //make color darker for y-sides: R, G and B byte each divided through two with a "shift" and an "and"
+        if(side == 1) color = (color >> 1) & 8355711;
+        buffer[y][x] = color;
+        */}
 
         return (draw_start, draw_end, color);
     }
@@ -210,7 +237,7 @@ impl Renderer {
         return (side_dist, map, side);
     }
 
-    fn calculate_draw_start_and_end(&mut self, wall_distance: f64) -> (i32, i32) {
+    fn calculate_draw_start_and_end(&mut self, wall_distance: f64) -> (i32, i32, i32) {
         let line_height = (SCREEN_HEIGHT as f64 / wall_distance) as i32;
         let mut draw_start: i32 = -line_height / 2 + SCREEN_HEIGHT as i32 / 2;
         if draw_start < 0 {
@@ -221,7 +248,7 @@ impl Renderer {
             draw_end = SCREEN_HEIGHT as i32 - 1
         };
 
-        return (draw_start, draw_end);
+        return (line_height, draw_start, draw_end);
     }
 
     fn get_color(&mut self, map: Vec2D<i32>, side: i32) -> Color {
