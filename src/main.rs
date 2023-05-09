@@ -104,15 +104,15 @@ impl<T> Vec2D<T> {
 
 pub struct Renderer {
     canvas: WindowCanvas,
-    buffer: Vec<Vec<u32>>,
+    textures: [Vec<u32>; 8],
 }
 
 impl Renderer {
-    pub fn new(window: Window) -> Result<Renderer, String> {
+    pub fn new(window: Window, textures: [Vec<u32>; 8]) -> Result<Renderer, String> {
         let canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
         Ok(Renderer {
             canvas,
-            buffer: vec![vec![0u32]],
+            textures,
         })
     }
 
@@ -155,7 +155,7 @@ impl Renderer {
         let color = self.get_color(map, side);
 
         // textures stuff
-        let text_num = WORLD_MAP[map.x as usize][map.y as usize];
+        let tex_num = WORLD_MAP[map.x as usize][map.y as usize];
         let mut wall_x = if side == 0 {
             game_context.player_position.y + perpwalldist * raydir.y
         } else {
@@ -172,6 +172,8 @@ impl Renderer {
         for y in draw_start..draw_end {
             let tex_y = tex_pos as i32 & (TEXTURE_HEIGHT as i32 - 1);
             tex_pos += tex_step;
+            let color = self.textures[tex_num as usize][TEXTURE_HEIGHT * tex_y as usize + tex_x as usize];
+            self.draw_pixel(x as i32, y as i32, Color { r: color as u8 % 250, g: color as u8 % 240, b: color as u8 % 200, a: 0 });
         /*    //
         Uint32 color = texture[texNum][texHeight * texY + texX];
         //make color darker for y-sides: R, G and B byte each divided through two with a "shift" and an "and"
@@ -275,7 +277,7 @@ impl Renderer {
     fn draw_screen(&mut self, game_context: GameContext) -> Result<(), String> {
         for x in 0..(SCREEN_WIDTH - 1) {
             let (draw_start, draw_end, color) = self.calculate_line(game_context, x as f64);
-            self.draw_vertical_line(x as i32, draw_start, draw_end, color)?;
+            //self.draw_vertical_line(x as i32, draw_start, draw_end, color)?;
         }
 
         Ok(())
@@ -308,6 +310,16 @@ impl Renderer {
             .fill_rect(Rect::new(x, y, width as u32, height as u32))?;
 
         Ok(())
+    }
+
+    pub fn draw_pixel(
+        &mut self,
+        x: i32,
+        y: i32,
+        color: Color,
+        ) {
+        self.canvas.set_draw_color(color);
+        self.canvas.fill_rect(Rect::new(x, y, 1, 1));
     }
 
     pub fn draw(&mut self, game_context: GameContext) -> Result<(), String> {
@@ -454,7 +466,6 @@ fn main() -> Result<(), String> {
     let event_pump = sdl_context.event_pump()?;
     let mut keyboard_event_handler = KeyboardEventHandler::new(event_pump);
 
-    let mut renderer = Renderer::new(window)?;
     let mut textures: [Vec<u32>; 8] = Default::default();
 
     // generate textures
@@ -476,6 +487,7 @@ fn main() -> Result<(), String> {
             textures[7].push(128 + 256 * 128 + 65536 * 128); //flat grey texture
         }
     }
+    let mut renderer = Renderer::new(window, textures)?;
 
     loop {
         renderer.draw(game_context)?;
