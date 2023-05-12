@@ -2,7 +2,7 @@ extern crate sdl2;
 
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
-use sdl2::rect::Rect;
+use sdl2::rect::{Point, Rect};
 use sdl2::render::WindowCanvas;
 use sdl2::video::Window;
 use sdl2::{event::Event, EventPump};
@@ -29,19 +29,19 @@ const WORLD_MAP: [&[i32; MAP_WIDTH]; MAP_HEIGHT] = [
         1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     ],
     &[
-        1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 0, 0, 0, 0, 3, 0, 3, 0, 3, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 0, 0, 0, 0, 3, 0, 7, 0, 5, 0, 0, 0, 1,
     ],
     &[
         1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     ],
     &[
-        1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 6, 0, 0, 0, 1,
     ],
     &[
         1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     ],
     &[
-        1, 0, 0, 0, 0, 0, 2, 2, 0, 2, 2, 0, 0, 0, 0, 3, 0, 3, 0, 3, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 2, 2, 0, 2, 2, 0, 0, 0, 0, 3, 0, 7, 0, 6, 0, 0, 0, 1,
     ],
     &[
         1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
@@ -71,7 +71,7 @@ const WORLD_MAP: [&[i32; MAP_WIDTH]; MAP_HEIGHT] = [
         1, 4, 0, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     ],
     &[
-        1, 4, 0, 0, 0, 0, 5, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        1, 4, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     ],
     &[
         1, 4, 0, 4, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
@@ -104,16 +104,13 @@ impl<T> Vec2D<T> {
 
 pub struct Renderer {
     canvas: WindowCanvas,
-    textures: [Vec<u32>; 8],
+    textures: [Vec<Color>; 8],
 }
 
 impl Renderer {
-    pub fn new(window: Window, textures: [Vec<u32>; 8]) -> Result<Renderer, String> {
+    pub fn new(window: Window, textures: [Vec<Color>; 8]) -> Result<Renderer, String> {
         let canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-        Ok(Renderer {
-            canvas,
-            textures,
-        })
+        Ok(Renderer { canvas, textures })
     }
 
     fn calculate_line(&mut self, game_context: GameContext, x: f64) -> (i32, i32, Color) {
@@ -163,23 +160,32 @@ impl Renderer {
         };
         wall_x -= wall_x.floor();
         let mut tex_x = (wall_x * TEXTURE_WIDTH as f64) as i32;
-        if side == 0 && raydir.x > 0.0 { tex_x = TEXTURE_WIDTH as i32 - tex_x - 1};
-        if side == 1 && raydir.y < 0.0 { tex_x = TEXTURE_WIDTH as i32 - tex_x - 1};
+        if side == 0 && raydir.x > 0.0 {
+            tex_x = TEXTURE_WIDTH as i32 - tex_x - 1
+        };
+        if side == 1 && raydir.y < 0.0 {
+            tex_x = TEXTURE_WIDTH as i32 - tex_x - 1
+        };
 
         let tex_step = 1.0 * TEXTURE_HEIGHT as f64 / line_height as f64;
-        let mut tex_pos = (draw_start - SCREEN_HEIGHT as i32 / 2 + line_height / 2) as f64 * tex_step;
+        let mut tex_pos =
+            (draw_start - SCREEN_HEIGHT as i32 / 2 + line_height / 2) as f64 * tex_step;
 
         for y in draw_start..draw_end {
             let tex_y = tex_pos as i32 & (TEXTURE_HEIGHT as i32 - 1);
             tex_pos += tex_step;
-            let color = self.textures[tex_num as usize][TEXTURE_HEIGHT * tex_y as usize + tex_x as usize];
-            self.draw_pixel(x as i32, y as i32, Color { r: color as u8 % 250, g: color as u8 % 240, b: color as u8 % 200, a: 0 });
-        /*    //
-        Uint32 color = texture[texNum][texHeight * texY + texX];
-        //make color darker for y-sides: R, G and B byte each divided through two with a "shift" and an "and"
-        if(side == 1) color = (color >> 1) & 8355711;
-        buffer[y][x] = color;
-        */}
+            let mut color = self.textures[tex_num as usize - 1]
+                [TEXTURE_HEIGHT * tex_y as usize + tex_x as usize];
+            if side == 1 {
+                color = Color {
+                    r: color.r / 2,
+                    g: color.g / 2,
+                    b: color.b / 2,
+                    a: 0,
+                };
+            }
+            self.draw_pixel(x as i32, y as i32, color);
+        }
 
         return (draw_start, draw_end, color);
     }
@@ -276,7 +282,7 @@ impl Renderer {
 
     fn draw_screen(&mut self, game_context: GameContext) -> Result<(), String> {
         for x in 0..(SCREEN_WIDTH - 1) {
-            let (draw_start, draw_end, color) = self.calculate_line(game_context, x as f64);
+            self.calculate_line(game_context, x as f64);
             //self.draw_vertical_line(x as i32, draw_start, draw_end, color)?;
         }
 
@@ -312,14 +318,9 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn draw_pixel(
-        &mut self,
-        x: i32,
-        y: i32,
-        color: Color,
-        ) {
+    pub fn draw_pixel(&mut self, x: i32, y: i32, color: Color) {
         self.canvas.set_draw_color(color);
-        self.canvas.fill_rect(Rect::new(x, y, 1, 1));
+        self.canvas.draw_point(Point::new(x, y)).unwrap();
     }
 
     pub fn draw(&mut self, game_context: GameContext) -> Result<(), String> {
@@ -466,25 +467,52 @@ fn main() -> Result<(), String> {
     let event_pump = sdl_context.event_pump()?;
     let mut keyboard_event_handler = KeyboardEventHandler::new(event_pump);
 
-    let mut textures: [Vec<u32>; 8] = Default::default();
+    let mut textures: [Vec<Color>; 8] = Default::default();
 
     // generate textures
     for x in 0..TEXTURE_WIDTH {
         for y in 0..TEXTURE_HEIGHT {
-            let xorcolor = ((x * 256 / TEXTURE_WIDTH) ^ (y * 256 / TEXTURE_HEIGHT)) as u32;
-            //int xcolor = x * 256 / TEXTURE_WIDTH;
-            let ycolor = (y * 256 / TEXTURE_HEIGHT) as u32;
-            let xycolor = (y * 128 / TEXTURE_HEIGHT + x * 128 / TEXTURE_WIDTH) as u32;
-            let cross_filter = (x != y && x != TEXTURE_WIDTH - y) as u32; //flat red texture with black cross
-            let brick_padding = ((x % 16) | (y % 16)) as u32;
-            textures[0].push(65536 * 254 * cross_filter); //flat red texture with black cross
-            textures[1].push(xycolor + 256 * xycolor + 65536 * xycolor); //sloped greyscale
-            textures[2].push(256 * xycolor + 65536 * xycolor); //sloped yellow gradient
-            textures[3].push(xorcolor + 256 * xorcolor + 65536 * xorcolor); //xor greyscale
-            textures[4].push(256 * xorcolor); //xor green
-            textures[5].push(65536 * 192 * brick_padding);
-            textures[6].push(65536 * ycolor); //red gradient
-            textures[7].push(128 + 256 * 128 + 65536 * 128); //flat grey texture
+            let xorcolor = ((x * 256 / TEXTURE_WIDTH) ^ (y * 256 / TEXTURE_HEIGHT)) as u8;
+            let xycolor = (y * 128 / TEXTURE_HEIGHT + x * 128 / TEXTURE_WIDTH) as u8;
+            let cross_filter = (x != y && x != TEXTURE_WIDTH - y) as u8; //flat red texture with black cross
+            let brick_padding = if (x % 16) == 0 || (y % 16) == 0 {
+                0 as u8
+            } else {
+                1 as u8
+            };
+            textures[0].push(Color {
+                r: 0,
+                g: 200 * cross_filter,
+                b: 0,
+                a: 0,
+            }); //flat red texture with black cross
+            textures[1].push(Color {
+                r: xycolor,
+                g: xycolor,
+                b: xycolor,
+                a: 0,
+            }); //sloped greyscale
+            textures[2].push(Color {
+                r: 0,
+                g: xycolor,
+                b: xycolor,
+                a: 0,
+            }); //sloped yellow gradient
+            textures[3].push(Color {
+                r: xorcolor,
+                g: xorcolor,
+                b: xorcolor,
+                a: 0,
+            }); //xor greyscale
+            textures[4].push(Color::GREEN); //xor green
+            textures[5].push(Color {
+                r: 150 * brick_padding,
+                g: brick_padding,
+                b: brick_padding,
+                a: 0,
+            });
+            textures[6].push(Color::YELLOW); //red gradient
+            textures[7].push(Color::GRAY); //flat grey texture
         }
     }
     let mut renderer = Renderer::new(window, textures)?;
