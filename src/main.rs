@@ -6,6 +6,7 @@ use sdl2::rect::{Point, Rect};
 use sdl2::render::WindowCanvas;
 use sdl2::video::Window;
 use sdl2::{event::Event, EventPump};
+use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
 const MAP_WIDTH: usize = 24;
@@ -14,6 +15,7 @@ const SCREEN_WIDTH: usize = 1280;
 const SCREEN_HEIGHT: usize = 720;
 const TEXTURE_WIDTH: usize = 64;
 const TEXTURE_HEIGHT: usize = 64;
+const EMPTY_COLOR: Color = Color{ r: 0, g: 0, b: 0, a: 0, };
 
 const WORLD_MAP: [&[i32; MAP_WIDTH]; MAP_HEIGHT] = [
     &[
@@ -105,15 +107,24 @@ impl<T> Vec2D<T> {
 pub struct Renderer {
     canvas: WindowCanvas,
     textures: [Vec<Color>; 8],
+    color_points: HashMap<Color, Vec<Point>>,
 }
 
 impl Renderer {
     pub fn new(window: Window, textures: [Vec<Color>; 8]) -> Result<Renderer, String> {
         let canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-        Ok(Renderer { canvas, textures })
+        Ok(Renderer { 
+            canvas,
+            textures,
+            color_points: HashMap::new(),
+        })
     }
 
-    fn calculate_line(&mut self, game_context: GameContext, x: f64) -> (i32, i32, Color) {
+    fn calculate_line(
+        &mut self,
+        game_context: GameContext,
+        x: f64,
+    ) -> (i32, i32, Color) {
         let camera_x: f64 = 2.0 * x / (SCREEN_WIDTH as f64) - 1.0;
         let raydir = Vec2D::new(
             game_context.player_direction.x + game_context.plane_position.x * camera_x,
@@ -184,7 +195,9 @@ impl Renderer {
                     a: 0,
                 };
             }
-            self.draw_pixel(x as i32, y as i32, color);
+            //self.draw_pixel(x as i32, y as i32, color);
+            let points = self.color_points.entry(color).or_insert(vec![Point::new(x as i32, y as i32)]);
+            points.push(Point::new(x as i32, y as i32));
         }
 
         return (draw_start, draw_end, color);
@@ -283,8 +296,13 @@ impl Renderer {
     fn draw_screen(&mut self, game_context: GameContext) -> Result<(), String> {
         for x in 0..(SCREEN_WIDTH - 1) {
             self.calculate_line(game_context, x as f64);
-            //self.draw_vertical_line(x as i32, draw_start, draw_end, color)?;
         }
+
+        let map = self.color_points.clone();
+        for (color, points) in map {
+            self.draw_pixels(points, color);
+        }
+        self.color_points.clear();
 
         Ok(())
     }
@@ -320,7 +338,12 @@ impl Renderer {
 
     pub fn draw_pixel(&mut self, x: i32, y: i32, color: Color) {
         self.canvas.set_draw_color(color);
-        self.canvas.draw_point(Point::new(x, y)).unwrap();
+        self.canvas.draw_point((x, y)).unwrap();
+    }
+
+    pub fn draw_pixels(&mut self, points: Vec<Point>, color: Color) {
+        self.canvas.set_draw_color(color);
+        self.canvas.draw_points(&points[..]).unwrap();
     }
 
     pub fn draw(&mut self, game_context: GameContext) -> Result<(), String> {
