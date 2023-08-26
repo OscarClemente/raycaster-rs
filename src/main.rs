@@ -11,11 +11,10 @@ use std::time::{Duration, SystemTime};
 
 const MAP_WIDTH: usize = 24;
 const MAP_HEIGHT: usize = 24;
-const SCREEN_WIDTH: usize = 1280;
-const SCREEN_HEIGHT: usize = 720;
+const SCREEN_WIDTH: usize = 640;
+const SCREEN_HEIGHT: usize = 480;
 const TEXTURE_WIDTH: usize = 64;
 const TEXTURE_HEIGHT: usize = 64;
-const EMPTY_COLOR: Color = Color{ r: 0, g: 0, b: 0, a: 0, };
 
 const WORLD_MAP: [&[i32; MAP_WIDTH]; MAP_HEIGHT] = [
     &[
