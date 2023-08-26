@@ -1,5 +1,6 @@
 extern crate sdl2;
 
+use sdl2::image::LoadSurface;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
@@ -536,7 +537,9 @@ fn main() -> Result<(), String> {
             textures[6].push(Color::YELLOW); //red gradient
             textures[7].push(Color::GRAY); //flat grey texture
         }
+
     }
+    textures[3] = load_texture("assets/greystone.png");
     let mut renderer = Renderer::new(window, textures)?;
 
     loop {
@@ -578,4 +581,31 @@ fn main() -> Result<(), String> {
     }
 
     Ok(())
+}
+
+pub fn load_texture(file_name: &str) -> Vec<Color> {
+    let surface = sdl2::surface::Surface::from_file(std::path::Path::new(file_name)).unwrap();
+    let mut pixels: Vec<Color> = Vec::new();
+    pixels.resize((surface.width() * surface.height()) as usize, Color::WHITE);
+
+    surface.with_lock(|surface_buffer: &[u8]| {
+        for x in 0..(surface.width() - 1) {
+            for y in 0..(surface.height() - 1) {
+                let texture_pixel_index =
+                    (y as usize * surface.pitch() as usize) +
+                    (x as usize * surface.pixel_format_enum().byte_size_per_pixel());
+
+                let color = Color {
+                    r: surface_buffer[texture_pixel_index],
+                    g: surface_buffer[texture_pixel_index + 1],
+                    b: surface_buffer[texture_pixel_index + 2],
+                    a: surface_buffer[texture_pixel_index + 3]
+                };
+
+                pixels[((y * surface.width()) + x) as usize] = color;
+            }
+        }
+    });
+
+    return pixels;
 }
