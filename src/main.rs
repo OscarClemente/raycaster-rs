@@ -491,55 +491,14 @@ fn main() -> Result<(), String> {
     let mut keyboard_event_handler = KeyboardEventHandler::new(event_pump);
 
     let mut textures: [Vec<Color>; 8] = Default::default();
-
-    // generate textures
-    for x in 0..TEXTURE_WIDTH {
-        for y in 0..TEXTURE_HEIGHT {
-            let xorcolor = ((x * 256 / TEXTURE_WIDTH) ^ (y * 256 / TEXTURE_HEIGHT)) as u8;
-            let xycolor = (y * 128 / TEXTURE_HEIGHT + x * 128 / TEXTURE_WIDTH) as u8;
-            let cross_filter = (x != y && x != TEXTURE_WIDTH - y) as u8; //flat red texture with black cross
-            let brick_padding = if (x % 16) == 0 || (y % 16) == 0 {
-                0 as u8
-            } else {
-                1 as u8
-            };
-            textures[0].push(Color {
-                r: 0,
-                g: 200 * cross_filter,
-                b: 0,
-                a: 0,
-            }); //flat red texture with black cross
-            textures[1].push(Color {
-                r: xycolor,
-                g: xycolor,
-                b: xycolor,
-                a: 0,
-            }); //sloped greyscale
-            textures[2].push(Color {
-                r: 0,
-                g: xycolor,
-                b: xycolor,
-                a: 0,
-            }); //sloped yellow gradient
-            textures[3].push(Color {
-                r: xorcolor,
-                g: xorcolor,
-                b: xorcolor,
-                a: 0,
-            }); //xor greyscale
-            textures[4].push(Color::GREEN); //xor green
-            textures[5].push(Color {
-                r: 150 * brick_padding,
-                g: brick_padding,
-                b: brick_padding,
-                a: 0,
-            });
-            textures[6].push(Color::YELLOW); //red gradient
-            textures[7].push(Color::GRAY); //flat grey texture
-        }
-
-    }
+    textures[0] = load_texture("assets/eagle.png");
+    textures[1] = load_texture("assets/redbrick.png");
+    textures[2] = load_texture("assets/purplestone.png");
     textures[3] = load_texture("assets/greystone.png");
+    textures[4] = load_texture("assets/bluestone.png");
+    textures[5] = load_texture("assets/mossy.png");
+    textures[6] = load_texture("assets/wood.png");
+    textures[7] = load_texture("assets/colorstone.png");
     let mut renderer = Renderer::new(window, textures)?;
 
     loop {
@@ -586,14 +545,18 @@ fn main() -> Result<(), String> {
 pub fn load_texture(file_name: &str) -> Vec<Color> {
     let surface = sdl2::surface::Surface::from_file(std::path::Path::new(file_name)).unwrap();
     let mut pixels: Vec<Color> = Vec::new();
-    pixels.resize((surface.width() * surface.height()) as usize, Color::WHITE);
+    pixels.resize((surface.width() * surface.height()) as usize, Color::BLACK);
 
     surface.with_lock(|surface_buffer: &[u8]| {
-        for x in 0..(surface.width() - 1) {
-            for y in 0..(surface.height() - 1) {
+        for x in 0..(surface.width()) {
+            for y in 0..(surface.height()- 1) {
                 let texture_pixel_index =
                     (y as usize * surface.pitch() as usize) +
                     (x as usize * surface.pixel_format_enum().byte_size_per_pixel());
+
+                if texture_pixel_index + 3 >= surface_buffer.len() {
+                    continue;
+                }
 
                 let color = Color {
                     r: surface_buffer[texture_pixel_index],
